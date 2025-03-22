@@ -68,7 +68,7 @@ response = client.chat.completions.create(
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.5
                 )
-                evaluacion = response["choices"][0]["message"]["content"]
+                    evaluacion = response["choices"][0]["message"]["content"]
                 st.markdown(evaluacion)
                 evaluaciones.append((pregunta, evaluacion))
 
