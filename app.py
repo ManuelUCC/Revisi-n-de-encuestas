@@ -54,13 +54,13 @@ Evalúa cada pregunta de encuesta considerando los siguientes criterios de calid
 """
 
         for i, pregunta in enumerate(preguntas_extraidas):
-    prompt = f"""
-{criterio_eval}
+              prompt = f"""
+{             criterio_eval}
 
-Pregunta: \"{pregunta}\"
-Proporciona una evaluación breve (máx. 100 palabras), una sugerencia concreta de mejora y asigna un puntaje del 1 al 10.
-"""
-    response = client.chat.completions.create(
+              Pregunta: \"{pregunta}\"
+              Proporciona una evaluación breve (máx. 100 palabras), una sugerencia concreta de mejora y asigna un puntaje del 1 al 10.
+              """
+              response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.5
