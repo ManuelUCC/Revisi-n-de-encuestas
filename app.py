@@ -6,92 +6,93 @@ import io
 import base64
 from fpdf import FPDF
 
-# --- Configura tu clave API de OpenAI ---
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Configura la clave API de OpenAI
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-st.set_page_config(page_title="Revisión de Calidad de Encuestas", layout="wide")
-st.title("📋 Evaluador de Calidad de Encuestas")
-st.write("Sube tu archivo de preguntas para revisar su calidad metodológica y estructural.")
+st.set_page_config(page_title="Evaluador de Calidad de Encuestas", page_icon="📊", layout="wide")
 
-uploaded_file = st.file_uploader("Carga tu archivo de encuesta (CSV, Excel o PDF)", type=["csv", "xlsx", "pdf"])
-preguntas_extraidas = []
-texto_completo = ""
-evaluaciones = []
+st.markdown("""
+<div style='display: flex; align-items: center;'>
+    <img src='https://upload.wikimedia.org/wikipedia/commons/5/5e/Universidad_Cooperativa_de_Colombia_logo.png' width='80' style='margin-right: 20px;'>
+    <h1 style='margin: 0; font-size: 2.5rem;'>Evaluador de Calidad de Encuestas</h1>
+</div>
+""", unsafe_allow_html=True)
+
+st.info("Bienvenido/a al Evaluador de Encuestas. Sube tus preguntas y genera un informe de calidad metodológica.")
+
+uploaded_file = st.file_uploader("📎 Carga tu archivo de encuesta (CSV, Excel o PDF)", type=["csv", "xlsx", "pdf"])
+preguntas = []
 
 if uploaded_file:
     if uploaded_file.name.endswith('.csv'):
         df = pd.read_csv(uploaded_file)
-        preguntas_extraidas = df.iloc[:, 0].dropna().tolist()
+        preguntas = df.iloc[:, 0].dropna().tolist()
     elif uploaded_file.name.endswith('.xlsx'):
         df = pd.read_excel(uploaded_file)
-        preguntas_extraidas = df.iloc[:, 0].dropna().tolist()
+        preguntas = df.iloc[:, 0].dropna().tolist()
     elif uploaded_file.name.endswith('.pdf'):
         reader = PyPDF2.PdfReader(uploaded_file)
-        texto_completo = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
-        posibles_preguntas = texto_completo.split("\n")
-        for linea in posibles_preguntas:
-            if '?' in linea or linea.strip().lower().startswith("¿"):
-                preguntas_extraidas.append(linea.strip())
+        texto = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        preguntas = [linea.strip() for linea in texto.split("\n") if '?' in linea or linea.strip().startswith("¿")]
 
-    if preguntas_extraidas:
-        st.subheader("📄 Preguntas extraídas")
-        st.write(f"Se han detectado {len(preguntas_extraidas)} posibles preguntas.")
-        for i, pregunta in enumerate(preguntas_extraidas):
-            st.markdown(f"{i+1}. {pregunta}")
+    if preguntas:
+        st.subheader("📄 Preguntas detectadas")
+        st.write(f"Se han detectado {len(preguntas)} preguntas.")
 
-        st.subheader("🔎 Revisión automática por IA")
-
-        criterio_eval = """ 
-Evalúa cada pregunta de encuesta considerando los siguientes criterios de calidad:
-
-1. Claridad: ¿Está formulada de forma comprensible y sin ambigüedades?
-2. Pertinencia: ¿Está alineada con los objetivos de la investigación y variables definidas?
-3. Tipo de pregunta: ¿Es adecuada según el indicador (abierta, cerrada, Likert, etc.)?
-4. Sesgos: ¿Evita preguntas capciosas, sugestivas o dobles?
-5. Redacción: ¿Está bien redactada y sin errores gramaticales?
-6. Recomendación de mejora, si aplica.
-7. Valoración global: Puntaje del 1 al 10.
+        criterio = """
+Evalúa la siguiente pregunta de encuesta bajo estos criterios:
+1. Claridad
+2. Pertinencia
+3. Tipo de pregunta
+4. Sesgos
+5. Redacción
+6. Sugerencia de mejora
+7. Puntaje global del 1 al 10
 """
 
-        for i, pregunta in enumerate(preguntas_extraidas):
-              prompt = f"""
-{             criterio_eval}
+        evaluaciones = []
+        puntajes = []
 
-              Pregunta: \"{pregunta}\"
-              Proporciona una evaluación breve (máx. 100 palabras), una sugerencia concreta de mejora y asigna un puntaje del 1 al 10.
-              """
-              response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.5
-    )
-    evaluacion = response.choices[0].message.content
-    evaluaciones.append((pregunta, evaluacion))
+        with st.spinner("Evaluando preguntas con IA..."):
+            for i, pregunta in enumerate(preguntas):
+                prompt = f"{criterio}\nPregunta: {pregunta}\n"
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.5
+                )
+                resultado = response.choices[0].message.content
+                evaluaciones.append((pregunta, resultado))
 
-    puntaje_linea = [line for line in evaluacion.split("\n") if "Puntaje:" in line or "puntaje" in line.lower()]
-    if puntaje_linea:
-        try:
-            valor = int("".join([c for c in puntaje_linea[-1] if c.isdigit()]))
-            puntajes.append(valor)
-        except:
-            puntajes.append(0)
+                linea = [l for l in resultado.split("\n") if "Puntaje" in l]
+                try:
+                    score = int("".join([c for c in linea[-1] if c.isdigit()]))
+                    puntajes.append(score)
+                except:
+                    puntajes.append(0)
+
+        st.markdown(f"📊 **Puntaje promedio:** {sum(puntajes)/len(puntajes):.1f}/10")
+
+        for i, (preg, eval) in enumerate(evaluaciones):
+            with st.expander(f"Pregunta {i+1}: {preg}"):
+                st.markdown(eval)
+
+        if st.button("📥 Descargar informe PDF"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(0, 10, "Informe de Evaluación de Encuesta", ln=True)
+            for i, (preg, eval) in enumerate(evaluaciones):
+                pdf.multi_cell(0, 10, f"Pregunta {i+1}: {preg}\nEvaluación:\n{eval}\n")
+            output = io.BytesIO()
+            pdf.output(output)
+            b64 = base64.b64encode(output.getvalue()).decode()
+            href = f'<a href="data:application/pdf;base64,{b64}" download="informe_encuesta.pdf">📄 Descargar Informe</a>'
+            st.markdown(href, unsafe_allow_html=True)
     else:
-        puntajes.append(0)
-
-
-    st.subheader("📊 Evaluación general del instrumento")
-    st.markdown("Esta sección revisa el diseño general de la encuesta:")
-    st.markdown("- 📌 **Introducción**: ¿Está clara la finalidad, la confidencialidad y el consentimiento informado?")
-    st.markdown("- 📋 **Sección demográfica**: ¿Incluye edad, género, programa, semestre?")
-    st.markdown("- 🧪 **Variables e indicadores**: ¿Las preguntas corresponden con variables claramente definidas?")
-    st.markdown("- 🔁 **Secuencia lógica**: ¿Las preguntas están organizadas de forma progresiva?")
-    st.markdown("- ⏱️ **Extensión**: ¿La encuesta es razonablemente breve?")
-    st.markdown("- 📎 **Escalas**: ¿Se usan escalas Likert, numéricas y opciones múltiples correctamente?")
-
-    st.success("Este módulo está listo y conectado con OpenAI. Puedes usarlo para generar informes reales.")
-
+        st.warning("No se encontraron preguntas.")
 else:
-    st.info("Esperando que subas un archivo con tus preguntas.")
+    st.info("Carga un archivo para comenzar.")
 
 st.markdown("---")
-st.caption("Desarrollado con base en la Guía para la Creación de Encuestas, Introducción a las Variables y ejemplos reales de encuestas universitarias.")
+st.caption("Universidad Cooperativa de Colombia · Proyecto de Evaluación Automatizada de Encuestas con IA.")
