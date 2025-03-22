@@ -54,41 +54,30 @@ Evalúa cada pregunta de encuesta considerando los siguientes criterios de calid
 """
 
         for i, pregunta in enumerate(preguntas_extraidas):
-            with st.expander(f"Pregunta {i+1}: {pregunta}"):
-                prompt = f"""
+    prompt = f"""
 {criterio_eval}
 
 Pregunta: \"{pregunta}\"
 Proporciona una evaluación breve (máx. 100 palabras), una sugerencia concreta de mejora y asigna un puntaje del 1 al 10.
 """
-                client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-response = client.chat.completions.create(
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.5
+    )
+    evaluacion = response.choices[0].message.content
+    evaluaciones.append((pregunta, evaluacion))
 
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.5
-                )
-                    evaluacion = response["choices"][0]["message"]["content"]
-                st.markdown(evaluacion)
-                evaluaciones.append((pregunta, evaluacion))
-
-        st.subheader("📤 Generar informe PDF")
-
-        if st.button("Descargar informe"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, "Informe de Evaluación de Encuesta\n\n")
-            for idx, (pregunta, evaluacion) in enumerate(evaluaciones):
-                pdf.multi_cell(0, 10, f"Pregunta {idx+1}: {pregunta}\nEvaluación: {evaluacion}\n")
-            pdf_output = io.BytesIO()
-            pdf.output(pdf_output)
-            b64_pdf = base64.b64encode(pdf_output.getvalue()).decode()
-            href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="informe_encuesta.pdf">📥 Haz clic aquí para descargar el informe</a>'
-            st.markdown(href, unsafe_allow_html=True)
-
+    puntaje_linea = [line for line in evaluacion.split("\n") if "Puntaje:" in line or "puntaje" in line.lower()]
+    if puntaje_linea:
+        try:
+            valor = int("".join([c for c in puntaje_linea[-1] if c.isdigit()]))
+            puntajes.append(valor)
+        except:
+            puntajes.append(0)
     else:
-        st.warning("No se detectaron preguntas en el archivo.")
+        puntajes.append(0)
+
 
     st.subheader("📊 Evaluación general del instrumento")
     st.markdown("Esta sección revisa el diseño general de la encuesta:")
