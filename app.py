@@ -61,7 +61,8 @@ Evalúa cada pregunta de encuesta considerando los siguientes criterios de calid
 Pregunta: \"{pregunta}\"
 Proporciona una evaluación breve (máx. 100 palabras), una sugerencia concreta de mejora y asigna un puntaje del 1 al 10.
 """
-                response = client.chat.completions.create(
+                client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+response = client.chat.completions.create(
 
                     model="gpt-3.5-turbo",
                     messages=[{"role": "user", "content": prompt}],
