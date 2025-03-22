@@ -1,5 +1,5 @@
-streamlit
-pandas
-openai
-PyPDF2
-fpdf
+streamlit>=1.32.0
+pandas>=2.1.0
+openai>=1.2.0
+PyPDF2>=3.0.0
+fpdf>=1.7.2
